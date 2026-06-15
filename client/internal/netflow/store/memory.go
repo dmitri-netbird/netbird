@@ -24,6 +24,8 @@ type Memory struct {
 
 type AggregatingMemory struct {
 	Memory
+	WindowStart time.Time
+	WindowEnd   time.Time
 }
 
 func (m *Memory) StoreEvent(event *types.Event) {
@@ -57,15 +59,17 @@ func (m *Memory) DeleteEvents(ids []uuid.UUID) {
 }
 
 func NewAggregatingMemoryStore() *AggregatingMemory {
-	return &AggregatingMemory{Memory{events: make(map[uuid.UUID]*types.Event)}}
+	return &AggregatingMemory{WindowStart: time.Now(), Memory: Memory{events: make(map[uuid.UUID]*types.Event)}}
 }
 
 func (am *AggregatingMemory) ResetAggregationWindow() types.FlowEventAggregator {
 	am.mux.Lock()
 	defer am.mux.Unlock()
 
-	toret := AggregatingMemory{Memory: Memory{events: am.events}}
+	toret := AggregatingMemory{WindowStart: am.WindowStart, WindowEnd: time.Now(), Memory: Memory{events: am.events}}
+
 	am.events = make(map[uuid.UUID]*types.Event)
+	am.WindowStart = time.Now()
 
 	return &toret
 }
@@ -99,6 +103,9 @@ func (am *AggregatingMemory) GetAggregatedEvents() []*types.Event {
 			case types.TypeEnd:
 				event.NumOfEnds += 1
 			}
+
+			event.WindowStart = am.WindowStart
+			event.WindowEnd = am.WindowEnd
 			continue
 		}
 
